@@ -104,9 +104,14 @@ public class LearnerActivity extends Activity
         {
             try
             {
-                ArffLoader loader = new ArffLoader();
-                loader.setFile(file);
-                addManyInstances(loader.getDataSet());
+                if (file.exists())
+                {
+                    ArffLoader loader = new ArffLoader();
+                    loader.setFile(file);
+
+                    Instances existingData = loader.getDataSet();
+                    addManyInstances(existingData);
+                }
             }
             catch (IOException e)
             {
