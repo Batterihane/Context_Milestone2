@@ -7,11 +7,6 @@
     <Button
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Calibrate"
-            android:id="@+id/calibrate" android:layout_gravity="center_horizontal" android:onClick="onCalibrating"/>
-    <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
             android:text="Start walking"
             android:id="@+id/walking" android:layout_gravity="center_horizontal" android:onClick="onStartWalking"/>
     <Button

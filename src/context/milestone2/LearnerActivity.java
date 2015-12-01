@@ -48,17 +48,7 @@ public class LearnerActivity extends Activity
     private File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
     private File file = new File(path, OUTPUT_FILENAME);
 
-    private SensorEventListener calibrationListener = new SensorEventListener()
-    {
-        public void onSensorChanged(final SensorEvent event)
-        {
-        }
-
-        @Override
-        public void onAccuracyChanged(final Sensor sensor, final int accuracy)
-        {
-        }
-    };
+    private long calibrationStartTime;
 
     private SensorEventListener sampleListener = new SensorEventListener()
     {
@@ -136,13 +126,6 @@ public class LearnerActivity extends Activity
         initialiseRelation();
     }
 
-    public void onCalibrating(final View view)
-    {
-        stopSampling();
-        startSampling(calibrationListener);
-        Toast.makeText(this, "Calibrating", Toast.LENGTH_SHORT).show();
-    }
-
     public void onStartWalking(final View view)
     {
         stopSampling();
@@ -187,6 +170,8 @@ public class LearnerActivity extends Activity
         samples.clear();
 
         Sensor accelerometer = sensor.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+
+        calibrationStartTime = System.currentTimeMillis();
         sensor.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
     }
 
@@ -212,13 +197,23 @@ public class LearnerActivity extends Activity
             double mean = mean(samples);
             double stdDev = standardDeviation(samples);
 
-            Toast.makeText(this, "New instance added", Toast.LENGTH_SHORT).show();
+            displayElapsedTime();
 
             addInstance(min, max, mean, stdDev, activityLabel);
             saveInstances();
 
             discardOverlap();
         }
+    }
+
+    private void displayElapsedTime()
+    {
+        long calibrationStopTime = System.currentTimeMillis();
+        long elapsedTime = calibrationStopTime - calibrationStartTime;
+
+        Toast.makeText(this, "Elapsed time: " + elapsedTime + " ms", Toast.LENGTH_LONG).show();
+
+        calibrationStartTime = System.currentTimeMillis();
     }
 
     private double mean(final List<Double> samples)
