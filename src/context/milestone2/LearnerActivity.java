@@ -9,6 +9,7 @@ import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.View;
+import android.widget.Toast;
 import weka.core.Attribute;
 import weka.core.FastVector;
 import weka.core.Instance;
@@ -21,6 +22,8 @@ import java.util.*;
 
 public class LearnerActivity extends Activity
 {
+    public static final int NUMBER_OF_ATTRIBUTES = 5;
+
     public static final int WINDOW_SIZE = 128;
     public static final int OVERLAP_SIZE = 64;
 
@@ -83,7 +86,7 @@ public class LearnerActivity extends Activity
         activities.addElement("running");
         activityAttribute = new Attribute("activity", activities);
 
-        FastVector features = new FastVector(5);
+        FastVector features = new FastVector(NUMBER_OF_ATTRIBUTES);
         features.addElement(minAttribute);
         features.addElement(maxAttribute);
         features.addElement(meanAttribute);
@@ -130,19 +133,25 @@ public class LearnerActivity extends Activity
 
     public void onCalibrating(final View view)
     {
+        stopSampling();
         startSampling(calibrationListener);
+        Toast.makeText(this, "Calibrating", Toast.LENGTH_SHORT).show();
     }
 
     public void onStartWalking(final View view)
     {
+        stopSampling();
         activityLabel = WALKING;
         startSampling(sampleListener);
+        Toast.makeText(this, "Walking", Toast.LENGTH_SHORT).show();
     }
 
     public void onStartRunning(final View view)
     {
+        stopSampling();
         activityLabel = RUNNING;
         startSampling(sampleListener);
+        Toast.makeText(this, "Running", Toast.LENGTH_SHORT).show();
     }
 
     public void onStop(final View view)
@@ -168,8 +177,10 @@ public class LearnerActivity extends Activity
         }
     }
 
-    public void startSampling(SensorEventListener listener)
+    public void startSampling(final SensorEventListener listener)
     {
+        samples.clear();
+
         Sensor accelerometer = sensor.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         sensor.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
     }
@@ -196,6 +207,8 @@ public class LearnerActivity extends Activity
             double mean = mean(samples);
             double stdDev = standardDeviation(samples);
 
+            Toast.makeText(this, "New instance added", Toast.LENGTH_SHORT).show();
+
             addInstance(min, max, mean, stdDev, activityLabel);
             saveInstances();
 
@@ -203,7 +216,7 @@ public class LearnerActivity extends Activity
         }
     }
 
-    private double mean(List<Double> samples)
+    private double mean(final List<Double> samples)
     {
         double sum = 0.0;
 
@@ -243,7 +256,7 @@ public class LearnerActivity extends Activity
                              final double stdDev,
                              final String label)
     {
-        Instance dataInstance = new Instance(4);
+        Instance dataInstance = new Instance(NUMBER_OF_ATTRIBUTES);
         dataInstance.setValue(minAttribute, min);
         dataInstance.setValue(maxAttribute, max);
         dataInstance.setValue(meanAttribute, mean);
