@@ -12,17 +12,22 @@
     <Button
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="Calibrate"
+            android:id="@+id/calibrate" android:layout_gravity="center_horizontal" android:onClick="onCalibrating"/>
+    <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Start walking"
-            android:id="@+id/button" android:layout_gravity="center_horizontal" android:onClick="onStartWalking"/>
+            android:id="@+id/walking" android:layout_gravity="center_horizontal" android:onClick="onStartWalking"/>
     <Button
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Start running"
-            android:id="@+id/button2" android:layout_gravity="center_horizontal" android:onClick="onStartRunning"/>
+            android:id="@+id/running" android:layout_gravity="center_horizontal" android:onClick="onStartRunning"/>
     <Button
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Stop"
-            android:id="@+id/button3" android:layout_gravity="center_horizontal" android:onClick="onStop"/>
+            android:id="@+id/stop" android:layout_gravity="center_horizontal" android:onClick="onStop"/>
 </LinearLayout>
 

@@ -8,7 +8,6 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Environment;
-import android.util.Log;
 import android.view.View;
 import weka.core.Attribute;
 import weka.core.FastVector;
@@ -18,130 +17,147 @@ import weka.core.converters.*;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class LearnerActivity extends Activity
 {
-
     public static final int WINDOW_SIZE = 128;
     public static final int OVERLAP_SIZE = 64;
-    private List<Double> measurements;
-    private SensorEventListener listener;
+
+    public static final String WALKING = "walking";
+    public static final String RUNNING = "running";
+
+    public static final String OUTPUT_FILENAME = "data.arff";
+
     private SensorManager sensor;
 
-    @Override
-    public void onCreate(Bundle savedInstanceState)
+    private Attribute minAttribute;
+    private Attribute maxAttribute;
+    private Attribute meanAttribute;
+    private Attribute stdDevAttribute;
+    private Attribute activityAttribute;
+
+    private String activityLabel;
+
+    private Instances instances;
+    private LinkedList<Double> samples = new LinkedList<Double>();
+
+    private File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+    private File file = new File(path, OUTPUT_FILENAME);
+
+    private SensorEventListener calibrationListener = new SensorEventListener()
     {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.main);
-        sensor = (SensorManager) this.getSystemService(Context.SENSOR_SERVICE);
-
-        measurements = new ArrayList<Double>();
-    }
-
-    public void onStartWalking(View view)
-    {
-
-        getAccelerometerData();
-    }
-
-    public void onStartRunning(View view)
-    {
-        getAccelerometerData();
-    }
-
-    public void onStop(View view)
-    {
-        sensor.unregisterListener(listener);
-
-        for (int windowStartIndex = 0;
-             windowStartIndex + WINDOW_SIZE <= measurements.size();
-             windowStartIndex += OVERLAP_SIZE)
+        public void onSensorChanged(final SensorEvent event)
         {
-            double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
-            
-            double sum = 0.0;
-            for (int i = windowStartIndex; i < windowStartIndex + WINDOW_SIZE; i++)
-            {
-                sum += measurements.get(i);
-            }
-            double average = sum / (double) WINDOW_SIZE;
-            
-            double squaredVarianceSum = 0.0;
-            for (int i = windowStartIndex; i < windowStartIndex + WINDOW_SIZE; i++)
-            {
-                double measurement = measurements.get(i);
-                if (measurement < min)
-                { min = measurement; }
-                if (measurement > max)
-                { max = measurement; }
-                
-                squaredVarianceSum += Math.pow(measurement - average, 2);
-            }
-            double standardDeviation = Math.sqrt(squaredVarianceSum / WINDOW_SIZE);
-
         }
-        saveToArff();
+
+        @Override
+        public void onAccuracyChanged(final Sensor sensor, final int accuracy)
+        {
+        }
+    };
+
+    private SensorEventListener sampleListener = new SensorEventListener()
+    {
+        public void onSensorChanged(final SensorEvent event)
+        {
+            samples.add(readSensorData(event));
+            updateSlidingWindow();
+        }
+
+        @Override
+        public void onAccuracyChanged(final Sensor sensor, final int accuracy)
+        {
+        }
+    };
+
+    private void initialiseRelation()
+    {
+        minAttribute = new Attribute("min");
+        maxAttribute = new Attribute("max");
+        meanAttribute = new Attribute("mean");
+        stdDevAttribute = new Attribute("stdDev");
+
+        FastVector activities = new FastVector(2);
+        activities.addElement("walking");
+        activities.addElement("running");
+        activityAttribute = new Attribute("activity", activities);
+
+        FastVector features = new FastVector(5);
+        features.addElement(minAttribute);
+        features.addElement(maxAttribute);
+        features.addElement(meanAttribute);
+        features.addElement(stdDevAttribute);
+        features.addElement(activityAttribute);
+
+        instances = new Instances("Activity", features, 0);
+
+        loadExistingData();
     }
 
-    private boolean isExternalStorageWritable()
+    private void loadExistingData()
+    {
+        if (isExternalStorageAvailable())
+        {
+            try
+            {
+                ArffLoader loader = new ArffLoader();
+                loader.setFile(file);
+                addManyInstances(loader.getDataSet());
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private boolean isExternalStorageAvailable()
     {
         String state = Environment.getExternalStorageState();
         return Environment.MEDIA_MOUNTED.equals(state);
     }
 
-    private Instances concatInstances(Instances inst1, Instances inst2)
+    @Override
+    public void onCreate(final Bundle savedInstanceState)
     {
-        for (int i = 0; i < inst2.numInstances(); i++)
-        {
-            inst1.add(inst2.instance(i));
-        }
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.main);
+        sensor = (SensorManager) this.getSystemService(Context.SENSOR_SERVICE);
 
-        return inst1;
+        initialiseRelation();
     }
 
-    public void saveToArff()
+    public void onCalibrating(final View view)
     {
-        Attribute minAttribute = new Attribute("min");
-        Attribute maxAttribute = new Attribute("max");
-        Attribute stdDevAttribute = new Attribute("stdDev");
+        startSampling(calibrationListener);
+    }
 
-        FastVector activities = new FastVector(2);
-        activities.addElement("walking");
-        activities.addElement("running");
-        Attribute activityAttribute = new Attribute("activity", activities);
+    public void onStartWalking(final View view)
+    {
+        activityLabel = WALKING;
+        startSampling(sampleListener);
+    }
 
-        FastVector features = new FastVector(4);
-        features.addElement(minAttribute);
-        features.addElement(maxAttribute);
-        features.addElement(stdDevAttribute);
-        features.addElement(activityAttribute);
+    public void onStartRunning(final View view)
+    {
+        activityLabel = RUNNING;
+        startSampling(sampleListener);
+    }
 
-        Instances data = new Instances("MyRelation", features, 0);
-        Instance dataInstance = new Instance(4);
-        dataInstance.setValue(minAttribute, 1.0);
-        dataInstance.setValue(maxAttribute, 5);
-        dataInstance.setValue(stdDevAttribute, 3.3);
-        dataInstance.setValue(activityAttribute, "walking");
-        data.add(dataInstance);
+    public void onStop(final View view)
+    {
+        stopSampling();
+    }
 
-        if (isExternalStorageWritable())
+    public void saveInstances()
+    {
+        if (isExternalStorageAvailable())
         {
             try
             {
-                File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                File file = new File(path, "data.arff");
-
-                ArffLoader loader = new ArffLoader();
-                loader.setFile(file);
-                Instances existingData = loader.getDataSet();
-
-                data = concatInstances(existingData, data);
-
                 ArffSaver saver = new ArffSaver();
-                saver.setInstances(data);
-
+                saver.setInstances(instances);
                 saver.setFile(file);
                 saver.writeBatch();
             }
@@ -152,26 +168,95 @@ public class LearnerActivity extends Activity
         }
     }
 
-    public void getAccelerometerData()
+    public void startSampling(SensorEventListener listener)
     {
-        listener = new SensorEventListener()
-        {
-            public void onSensorChanged(SensorEvent event)
-            {
-                float x = event.values[0];
-                float y = event.values[1];
-                float z = event.values[2];
-                double norm = Math.sqrt(x * x + y * y + z * z);
-                measurements.add(norm);
-            }
-
-            @Override
-            public void onAccuracyChanged(Sensor sensor, int accuracy)
-            {
-
-            }
-        };
         Sensor accelerometer = sensor.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         sensor.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+    }
+
+    private void stopSampling()
+    {
+        sensor.unregisterListener(sampleListener);
+    }
+
+    private double readSensorData(final SensorEvent event)
+    {
+        float x = event.values[0];
+        float y = event.values[1];
+        float z = event.values[2];
+        return Math.sqrt(x * x + y * y + z * z);
+    }
+
+    private void updateSlidingWindow()
+    {
+        if (samples.size() == WINDOW_SIZE)
+        {
+            double min = Collections.min(samples);
+            double max = Collections.max(samples);
+            double mean = mean(samples);
+            double stdDev = standardDeviation(samples);
+
+            addInstance(min, max, mean, stdDev, activityLabel);
+            saveInstances();
+
+            discardOverlap();
+        }
+    }
+
+    private double mean(List<Double> samples)
+    {
+        double sum = 0.0;
+
+        for (int i = 0; i < WINDOW_SIZE; i++)
+        {
+            sum += samples.get(i);
+        }
+
+        return sum / (double) WINDOW_SIZE;
+    }
+
+    private double standardDeviation(final List<Double> samples)
+    {
+        double mean = mean(samples);
+        double squaredVarianceSum = 0.0;
+
+        for (int i = 0; i < WINDOW_SIZE; i++)
+        {
+            double measurement = samples.get(i);
+            squaredVarianceSum += Math.pow(measurement - mean, 2);
+        }
+
+        return Math.sqrt(squaredVarianceSum / WINDOW_SIZE);
+    }
+
+    private void discardOverlap()
+    {
+        for (int i = 0; i < OVERLAP_SIZE; i++)
+        {
+            samples.removeFirst();
+        }
+    }
+
+    private void addInstance(final double min,
+                             final double max,
+                             final double mean,
+                             final double stdDev,
+                             final String label)
+    {
+        Instance dataInstance = new Instance(4);
+        dataInstance.setValue(minAttribute, min);
+        dataInstance.setValue(maxAttribute, max);
+        dataInstance.setValue(meanAttribute, mean);
+        dataInstance.setValue(stdDevAttribute, stdDev);
+        dataInstance.setValue(activityAttribute, label);
+        instances.add(dataInstance);
+    }
+
+    private void addManyInstances(final Instances instancesToBeAdded)
+    {
+        for (int i = 0; i < instancesToBeAdded.numInstances(); i++)
+        {
+            instances.add(instancesToBeAdded.instance(i));
+        }
     }
 }
