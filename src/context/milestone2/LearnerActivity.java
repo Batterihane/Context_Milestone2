@@ -7,9 +7,16 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.View;
+import weka.core.Attribute;
 import weka.core.FastVector;
+import weka.core.Instance;
+import weka.core.Instances;
+import weka.core.converters.ArffSaver;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -63,7 +70,51 @@ public class LearnerActivity extends Activity {
             }
             double standardDeviation = Math.sqrt(squaredVarianceSum / WINDOW_SIZE);
 
+        }
+        saveToArff();
+    }
 
+    private boolean isExternalStorageWritable(){
+        String state = Environment.getExternalStorageState();
+        return Environment.MEDIA_MOUNTED.equals(state);
+    }
+
+    public void saveToArff(){
+        Attribute minAttribute = new Attribute("min");
+        Attribute maxAttribute = new Attribute("max");
+        Attribute stdDevAttribute = new Attribute("stdDev");
+
+        FastVector activities = new FastVector(2);
+        activities.addElement("walking");
+        activities.addElement("running");
+        Attribute activityAttribute = new Attribute("activity", activities);
+
+        FastVector features = new FastVector(4);
+        features.addElement(minAttribute);
+        features.addElement(maxAttribute);
+        features.addElement(stdDevAttribute);
+        features.addElement(activityAttribute);
+
+
+        Instances data = new Instances("MyRelation", features, 0);
+        Instance dataInstance = new Instance(4);
+        dataInstance.setValue(minAttribute, 1.0);
+        dataInstance.setValue(maxAttribute, 5);
+        dataInstance.setValue(stdDevAttribute, 3.3);
+        dataInstance.setValue(activityAttribute, "walking");
+        data.add(dataInstance);
+
+        if (isExternalStorageWritable()) {
+            try {
+                ArffSaver saver = new ArffSaver();
+                saver.setInstances(data);
+                File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                File file = new File(path,"data.arff");
+                saver.setFile(file);
+                saver.writeBatch();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
